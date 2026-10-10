@@ -44,11 +44,16 @@ const LISSAGE = 0.005;    // 5 ms : un potard tourné glisse au lieu de sauter (
 // (tout à droite). Donc LP est grand ouvert tout à droite et HP grand
 // ouvert tout à gauche, comme le dit le manuel p. 7.
 // Pas de résonance, comme la vraie machine : la passoire ne « siffle » jamais.
-// Pente : 12 dB par octave (au-delà de la limite, le son est divisé par 4
-// à chaque octave). Le manuel ne la donne pas.
+// Pente : 24 dB par octave (au-delà de la limite, le son est divisé par 16
+// à chaque octave). Le manuel ne la donne pas : choix B de la question 17.
+// Pour l'obtenir, deux passoires de 12 dB sont mises l'une derrière l'autre.
 const CUTOFF_MIN = 10;      // Hz, potard à 0
 const CUTOFF_MAX = 22000;   // Hz, potard à 10
-const AMORTI = Math.SQRT2;  // amortissement « Butterworth » : pas de bosse, donc pas de résonance
+// Amortissement des deux passoires, réglé « Butterworth » : la courbe reste
+// plate jusqu'à la limite, sans bosse, donc sans résonance
+const AMORTI_1 = 2 * Math.cos(Math.PI / 8); // 1,848
+const AMORTI_2 = 2 * Math.cos(3 * Math.PI / 8); // 0,765
+const LISSAGE_CUTOFF = 0.01; // 10 ms : CUTOFF glisse un peu plus (un filtre raide s'ouvre vite)
 const FONDU_FILTRE = 0.01;  // 10 ms : FILTER SWITCH SLEW, fondu d'un type de filtre à l'autre
 
 // --- L'overdrive (DRIVE) -----------------------------------------------
@@ -60,6 +65,25 @@ const FONDU_FILTRE = 0.01;  // 10 ms : FILTER SWITCH SLEW, fondu d'un type de fi
 const GAIN_DRIVE = 8;       // l'overdrive pousse le son 8 fois (+18 dB) avant de l'écraser
 const SORTIE_DRIVE = 0.7;   // puis le ramène à un volume proche du son propre
 const ANTI_CONTINU = 8;     // Hz : enlève le décalage créé par l'écrasement asymétrique
+
+// Une passoire de 12 dB, dite « à variables d'état » : le même petit circuit
+// donne en même temps les sorties HP, BP et LP. Ses deux « mémoires » (m1, m2)
+// sont l'état du circuit, comme deux condensateurs qui se chargent.
+//   g : réglage de la limite (vient de CUTOFF) ; k : amortissement
+const nouvellePassoire = () => ({ m1: 0, m2: 0, hp: 0, bp: 0, lp: 0 });
+function passer(p, x, g, k) {
+  const a1 = 1 / (1 + g * (g + k)), a2 = g * a1, a3 = g * a2;
+  const v3 = x - p.m2;
+  const v1 = a1 * p.m1 + a2 * v3;
+  const v2 = p.m2 + a2 * p.m1 + a3 * v3;
+  p.m1 = 2 * v1 - p.m1;
+  p.m2 = 2 * v2 - p.m2;
+  p.hp = x - k * v1 - v2;
+  p.bp = k * v1; // ramené pour valoir 1 au sommet
+  p.lp = v2;
+}
+const auRepos = (p) => Math.abs(p.m1) + Math.abs(p.m2) < 1e-9;
+const vider = (p) => { p.m1 = p.m2 = 0; };
 
 // Passer de 0..10 à une plage qui grandit « en multipliant », comme les octaves
 const expo = (v, a, b) => a * Math.pow(b / a, Math.min(10, Math.max(0, v)) / 10);
@@ -91,10 +115,10 @@ class VoixPerkons extends AudioWorkletProcessor {
     this.compteBruit = 1;
     this.graine = 22222 + this.n; // bruit identique à chaque export (mesures répétables)
 
-    // Filtre : deux petites « mémoires » (l'état du circuit, comme deux
-    // condensateurs), le CUTOFF lissé et la part de HP / BP / LP entendue
-    this.m1 = 0;
-    this.m2 = 0;
+    // Filtre : une première passoire commune, puis une deuxième pour chaque
+    // type (HP, BP, LP), le CUTOFF lissé et la part de HP / BP / LP entendue
+    this.etage1 = nouvellePassoire();
+    this.etages2 = [nouvellePassoire(), nouvellePassoire(), nouvellePassoire()];
     this.frequence = -1;
     this.poids = null;
     // Overdrive : mélange lissé et mémoire de l'anti-décalage
@@ -126,6 +150,7 @@ class VoixPerkons extends AudioWorkletProcessor {
     const l = p.level[0] / 10;
     const gainVise = l * l;                       // courbe « audio » : comme un vrai potard de volume
     const lissage = 1 - Math.exp(-1 / (LISSAGE * sr));
+    const lissageCutoff = 1 - Math.exp(-1 / (LISSAGE_CUTOFF * sr));
     const pasMontee = 1 / (MONTEE * sr);
     if (this.gain < 0) this.gain = gainVise; // au démarrage : directement la bonne position
     const coups = p.coup;
@@ -161,13 +186,14 @@ class VoixPerkons extends AudioWorkletProcessor {
         this.env = 0;
       }
       this.gain += (gainVise - this.gain) * lissage;
-      this.frequence *= Math.pow(frequenceVisee / this.frequence, lissage); // glisse « en octaves »
+      this.frequence *= Math.pow(frequenceVisee / this.frequence, lissageCutoff); // glisse « en octaves »
       this.melange += (melangeVise - this.melange) * lissage;
       for (let t = 0; t < 3; t++) w[t] = t === type ? Math.min(1, w[t] + pasFondu) : Math.max(0, w[t] - pasFondu);
 
       // Voix éteinte et circuits au repos : rien à calculer
-      if (this.env === 0 && Math.abs(this.m1) + Math.abs(this.m2) + Math.abs(this.dcSortie) < 1e-9) {
-        this.m1 = this.m2 = this.dcEntree = this.dcSortie = 0;
+      if (this.env === 0 && auRepos(this.etage1) && this.etages2.every(auRepos) && Math.abs(this.dcSortie) < 1e-9) {
+        vider(this.etage1); this.etages2.forEach(vider);
+        this.dcEntree = this.dcSortie = 0;
         sortie[i] = 0;
         continue;
       }
@@ -189,19 +215,18 @@ class VoixPerkons extends AudioWorkletProcessor {
         s *= this.env;
       }
 
-      // 2. Le filtre (VCF), dit « à variables d'état » : le même petit circuit
-      // donne en même temps les sorties HP, BP et LP. C'est ce qui permet
-      // de passer de l'une à l'autre en fondu, sans clic.
+      // 2. Le filtre (VCF) : deux passoires de 12 dB l'une derrière l'autre = 24 dB.
+      // La première est commune ; la deuxième existe en trois exemplaires
+      // (un par type), qui tournent tout le temps : c'est ce qui permet de
+      // passer d'un type à l'autre en fondu, sans clic.
       if (!this.sansFiltre) {
         const g = Math.tan(Math.PI * this.frequence / sr);
-        const a1 = 1 / (1 + g * (g + AMORTI)), a2 = g * a1, a3 = g * a2;
-        const v3 = s - this.m2;
-        const v1 = a1 * this.m1 + a2 * v3;
-        const v2 = this.m2 + a2 * this.m1 + a3 * v3;
-        this.m1 = 2 * v1 - this.m1;
-        this.m2 = 2 * v2 - this.m2;
-        const hp = s - AMORTI * v1 - v2, bp = AMORTI * v1, lp = v2;
-        s = w[0] * hp + w[1] * bp + w[2] * lp;
+        const e1 = this.etage1, [eHP, eBP, eLP] = this.etages2;
+        passer(e1, s, g, AMORTI_1);
+        passer(eHP, e1.hp, g, AMORTI_2);
+        passer(eBP, e1.bp, g, AMORTI_2);
+        passer(eLP, e1.lp, g, AMORTI_2);
+        s = w[0] * eHP.hp + w[1] * eBP.bp + w[2] * eLP.lp;
       }
 
       // 3. L'overdrive (DRIVE), mélangé au son propre. À 0 : contourné.
