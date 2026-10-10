@@ -1,0 +1,9 @@
+# Seuls les fichiers de la page partent en ligne.
+# Tout est ignoré, sauf ce qui est listé avec « ! » en dessous.
+/*
+!/.gitignore
+!/.nojekyll
+!/index.html
+!/css/
+!/js/
+!/fonts/

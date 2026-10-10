@@ -1,0 +1,98 @@
+/* =====================================================================
+   facade.css — LA PEINTURE (mission 3)
+   Couleurs, polices et taille de la façade à l'écran.
+   ===================================================================== */
+
+/* Polices rangées dans le dossier fonts/ (marchent sans internet).
+   Roboto Condensed = sérigraphie, Michroma = nom « HD-01 ». Licence libre OFL. */
+@font-face { font-family: 'Roboto Condensed'; font-weight: 400; src: url(../fonts/roboto-condensed-latin-400-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Roboto Condensed'; font-weight: 500; src: url(../fonts/roboto-condensed-latin-500-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Roboto Condensed'; font-weight: 600; src: url(../fonts/roboto-condensed-latin-600-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Michroma'; font-weight: 400; src: url(../fonts/michroma-latin-400-normal.woff2) format('woff2'); }
+
+:root {
+  --fond-bureau: #2b2b2d;   /* la « table » autour de la machine */
+  --encre: #d9d9d6;         /* blanc cassé de la sérigraphie */
+  --encre-foncee: #5a5a5a;  /* texte dans les bandeaux clairs */
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: radial-gradient(ellipse at 50% 40%, #3a3a3d 0%, var(--fond-bureau) 70%);
+  overflow: hidden;
+}
+
+/* La façade garde ses proportions et remplit au mieux la fenêtre,
+   comme une photo qu'on zoome sans la déformer. */
+#facade {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 1.5vh 1.5vw;
+}
+.facade {
+  width: 100%;
+  height: 100%;
+  user-select: none;
+}
+
+/* --- Sérigraphie (le texte imprimé sur la machine) --- */
+.facade text {
+  font-family: 'Roboto Condensed', 'Arial Narrow', Arial, sans-serif;
+  fill: var(--encre);
+  text-anchor: middle;
+}
+.facade .nom      { font-size: 7.4px; font-weight: 500; letter-spacing: .1px; }
+.facade .num      { font-size: 5.6px; font-weight: 500; }
+.facade .num.petit{ font-weight: 600; }
+.facade .mini     { font-size: 5px;   font-weight: 600; }
+.facade .mini-clair { font-size: 5.6px; font-weight: 500; }
+.facade .bandeau  { font-size: 6.6px; font-weight: 500; fill: var(--encre-foncee); letter-spacing: .4px; }
+.facade .marque   {
+  font-family: 'Michroma', 'Eurostile', 'Arial Black', sans-serif;
+  font-size: 20px;
+  letter-spacing: 1.5px;
+  fill: #e4e4e2;
+  text-anchor: start;
+}
+
+.facade .cadre { fill: none; stroke: #c9c9c6; stroke-width: 1.1; }
+.facade .case  { fill: none; stroke: #c9c9c6; stroke-width: .7; }
+.facade .tick  { stroke: var(--encre); stroke-width: .7; stroke-linecap: round; }
+.facade .arc   { stroke: var(--encre); stroke-width: .6; fill: none; }
+.facade .onde  { stroke: var(--encre); stroke-width: .8; fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.facade .trait { stroke: #f2f2f0; stroke-linecap: round; }
+.facade .symbole { fill: var(--encre); stroke: var(--encre); stroke-width: .6; stroke-linecap: round; }
+.facade .lune    { fill: var(--encre); }
+
+/* =====================================================================
+   Mission 4 : la façade réagit à la souris
+   ===================================================================== */
+
+/* La forme du curseur dit ce qu'on peut faire, comme une poignée de porte */
+.facade [data-type="potard"] { cursor: ns-resize; }
+.facade [data-type="inter"],
+.facade [data-type="touche"],
+.facade [data-type="touche-voix"] { cursor: pointer; }
+
+/* Touche enfoncée : elle descend d'un poil et s'assombrit */
+.facade .corps,
+.facade [data-type="touche"] > [data-type="voyant"] { transition: transform 40ms; }
+.facade .enfoncee > .corps,
+.facade .enfoncee > [data-type="voyant"] { transform: translateY(1.2px); }
+.facade .ombre-appui { fill: #000; opacity: 0; pointer-events: none; }
+.facade .enfoncee .ombre-appui { opacity: .22; }
+
+/* Touche bloquée par un clic droit : cadre lumineux (une « pince à linge » visible) */
+.facade .cadre-tenu {
+  fill: none;
+  stroke: #5fd4ff;
+  stroke-width: 1.3;
+  opacity: 0;
+  pointer-events: none;
+}
+.facade .tenue .cadre-tenu { opacity: 1; }
