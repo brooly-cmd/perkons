@@ -271,12 +271,18 @@ export function poserInter(g, position) {
   el('ellipse', { cx: 0, cy: decal, rx: 3, ry: decal === 0 ? 3 : 3.6, fill: 'url(#g-levier)', stroke: '#555', 'stroke-width': 0.4 }, lev);
 }
 
-// Bascule l'interrupteur ON/OFF (côté enfoncé = côté choisi)
+// Bascule l'interrupteur ON/OFF : le côté choisi est éclairé, et son texte
+// (OFF ou ON) brille, l'autre s'efface. Ainsi on lit l'état sans hésiter.
 export function poserAlim(g, position) {
   g.dataset.position = position;
   const [gauche, droite] = g.querySelectorAll('.bascule');
-  gauche.setAttribute('fill', position === 'OFF' ? '#121212' : '#3a3a3a');
-  droite.setAttribute('fill', position === 'ON' ? '#121212' : '#3a3a3a');
+  gauche.setAttribute('fill', position === 'OFF' ? '#d8d8d8' : '#1a1a1a');
+  droite.setAttribute('fill', position === 'ON' ? '#7bd88f' : '#1a1a1a');
+  for (const t of g.querySelectorAll('[data-cote]')) {
+    const actif = t.dataset.cote === position;
+    t.style.fill = actif ? (position === 'ON' ? '#7bd88f' : '#ffffff') : '#4a4a4a';
+    t.style.fontWeight = actif ? '700' : '400';
+  }
   g.ownerSVGElement.dataset.alim = position;
 }
 
@@ -389,16 +395,16 @@ export function dessinerFacade(conteneur) {
 
   // --- Interrupteur ON/OFF (au-dessus, coin haut droit) ---
   const a = P.ALIMENTATION;
-  const alim = el('g', { 'data-type': 'inter', 'data-id': a.id, 'data-position': a.position, 'data-crans': 2, transform: `translate(${a.x},${-18})` }, svg);
+  const alim = el('g', { 'data-type': 'inter', 'data-id': a.id, 'data-position': a.position, 'data-crans': 2, transform: `translate(${a.x},${-17}) scale(1.4)` }, svg); // agrandi : plus facile à lire et à viser
   el('rect', { x: -22, y: -11, width: 44, height: 22, rx: 3, fill: '#0b0b0b', stroke: '#333', 'stroke-width': 0.8 }, alim);
   el('rect', { x: -9, y: -7, width: 18, height: 14, rx: 2, fill: '#1c1c1c', stroke: '#000' }, alim);
   // bascule : côté OFF enfoncé à gauche
   el('rect', { class: 'bascule', x: -8, y: -6, width: 8, height: 12, rx: 1.5 }, alim);
   el('rect', { class: 'bascule', x: 0, y: -6, width: 8, height: 12, rx: 1.5 }, alim);
+  texte(alim, -15.5, 2, 'OFF', 'mini', { fill: '#bdbdbd', 'data-cote': 'OFF' });
+  texte(alim, 15.5, 2, 'ON', 'mini', { fill: '#bdbdbd', 'data-cote': 'ON' });
   poserAlim(alim, a.position);
-  texte(alim, -15.5, 2, 'OFF', 'mini', { fill: '#bdbdbd' });
-  texte(alim, 15.5, 2, 'ON', 'mini', { fill: '#bdbdbd' });
-  texte(alim, 0, 17.5, 'POWER', 'mini', { fill: '#8a8a8a' });
+  texte(alim, -26, 2, 'POWER', 'mini', { fill: '#8a8a8a', 'text-anchor': 'end' });
 
   const serig = el('g', { id: 'serigraphie' }, svg);
 
