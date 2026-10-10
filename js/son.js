@@ -1,16 +1,16 @@
 // =====================================================================
-// son.js — LA FAÇADE BRANCHÉE SUR LE MOTEUR AUDIO (mission 6)
+// son.js — LA FAÇADE BRANCHÉE SUR LE MOTEUR AUDIO (missions 6 et 7)
 //
 // - ON/OFF : allume ou éteint le son. Le navigateur n'accepte de faire du
 //   son qu'après un geste de l'utilisateur ; le premier vrai clic n'importe
 //   où sur la page allume donc la machine (décision 6 de l'inventaire).
 // - Touche de voix appuyée seule : joue la voix (les combinaisons avec
 //   SHIFT, REC, CLEAR, pas… arriveront avec leurs missions).
-// - TUNE, DECAY, LEVEL de chaque voix : changent le son, même pendant
-//   qu'il sonne.
+// - TUNE, DECAY, LEVEL (M6), CUTOFF, DRIVE et l'interrupteur VCF (M7) de
+//   chaque voix : changent le son, même pendant qu'il sonne.
 // =====================================================================
 
-import { creerMoteur, NOMS_VOIX, PARAMS_M6 } from './audio/moteur.js';
+import { creerMoteur, NOMS_VOIX, POTARDS_BRANCHES, INTERS_BRANCHES } from './audio/moteur.js';
 
 export function brancherSon(pupitre) {
   let ctx = null;
@@ -23,7 +23,10 @@ export function brancherSon(pupitre) {
       pret = creerMoteur(ctx).then((m) => {
         moteur = m;
         // le moteur prend la position actuelle de chaque potard
-        for (const n of NOMS_VOIX) for (const nom of PARAMS_M6) m.regler(n, nom, pupitre.valeur(`v${n}-${nom}`));
+        for (const n of NOMS_VOIX) {
+          for (const nom of POTARDS_BRANCHES) m.regler(n, nom, pupitre.valeur(`v${n}-${nom}`));
+          for (const nom of INTERS_BRANCHES) m.regler(n, nom, pupitre.position(`v${n}-${nom}`));
+        }
         return m;
       });
     }
@@ -57,9 +60,11 @@ export function brancherSon(pupitre) {
       return;
     }
 
-    if (e.type === 'tourne' && moteur) {
+    if ((e.type === 'tourne' || e.type === 'bascule') && moteur) {
       const [, n, nom] = e.id.match(/^v(\d)-(\w+)$/) || [];
-      if (n && PARAMS_M6.includes(nom)) moteur.regler(Number(n), nom, e.valeur);
+      if (!n) return;
+      if (e.type === 'tourne' && POTARDS_BRANCHES.includes(nom)) moteur.regler(Number(n), nom, e.valeur);
+      if (e.type === 'bascule' && INTERS_BRANCHES.includes(nom)) moteur.regler(Number(n), nom, e.position);
     }
   });
 
